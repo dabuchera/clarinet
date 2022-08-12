@@ -450,7 +450,121 @@ From there, clarinet will be able to resolve the `contract-call?` statements inv
 
 When deploying your protocol to Devnet / Testnet, for the contracts involving requirements, the setting `remap_requirements` in your deployment plans must be set.
 
+<<<<<<< HEAD
 Before Devnet / Testnet deployments, your contracts will be automatically remapped on the fly to point to the duplicated requirements deployed by an account that you control.
+=======
+As a step-by-step example, we use here the following contract, [**bitcoin-whales**](https://explorer.stacks.co/txid/SP2KAF9RF86PVX3NEE27DFV1CQX0T4WGR41X3S45C.bitcoin-whales?chain=mainnet)
+
+If you examine this contract, you will see that  there are 3 different dependencies: two from the **same**
+project (included in the same Clarinet.toml file), and one referring to a contract deployed outside of the current project.
+
+### Same Project
+
+In the contract snippet below *(line:260-265)*, there are dependencies on the contracts conversion and conversion-v2 which are included in the same `Clarinet.toml` file.
+
+```clarity
+(define-read-only (get-token-uri (token-id uint))
+  (if (< token-id u5001)
+    (ok (some (concat (concat (var-get ipfs-root) (unwrap-panic (contract-call? .conversion lookup token-id))) ".json")))
+    (ok (some (concat (concat (var-get ipfs-root) (unwrap-panic (contract-call? .conversion-v2 lookup (- token-id u5001)))) ".json")))
+    )
+)
+```
+
+### External Deployer 
+
+In this snippet, there is a dependency on the `nft-trait` *(line:001)* deployed by `'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9`.
+
+```clarity
+(impl-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait.nft-trait)
+```
+
+Dependencies from **external** contracts should be set in `[[project.requirements]]`
+
+Dependencies from **internal** contracts no longer need to be set in `depends_on`. However, this is still present in many contracts, tutorials and documentations. 
+
+```toml
+[project]
+name = "my-project"
+
+[[project.requirements]]
+contract_id = "SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait"
+
+boot_contracts = ["pox", "costs-v2", "bns"]
+
+[project.cache_location]
+path = ".requirements"
+
+[contracts.bitcoin-whales]
+path = "contracts/bitcoin-whales.clar"
+# depends_on = ["conversion","conversion-v2"] # no longer needed, ignored if provided
+
+[contracts.conversion]
+path = "contracts/conversion.clar"
+
+[contracts.conversion-v2]
+path = "contracts/conversion-v2.clar"
+
+[repl]
+costs_version = 2
+parser_version = 2
+
+[repl.analysis]
+passes = ["check_checker"]
+
+[repl.analysis.check_checker]
+strict = false
+trusted_sender = false
+trusted_caller = false
+callee_filter = false
+```
+
+As a next step we can generate a deployment plan for this project.
+
+If running `$ clarinet integrate` for the first time. This file should be created by clarinet.
+
+In addition you can run `$ clarinet deployment generate --devnet` to create or overwrite.
+
+```yaml
+---
+id: 0
+name: Devnet deployment
+network: devnet
+stacks-node: "http://localhost:20443"
+bitcoin-node: "http://devnet:devnet@localhost:18443"
+plan:
+  batches:
+    - id: 0
+      transactions:
+        - requirement-publish:
+            contract-id: SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait
+            remap-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+            remap-principals:
+              SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+            cost: 4680
+            path: ".requirements\\SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait.clar"
+        - contract-publish:
+            contract-name: conversion
+            expected-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+            cost: 340250
+            path: "contracts\\conversion.clar"
+            anchor-block-only: true
+        - contract-publish:
+            contract-name: conversion-v2
+            expected-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+            cost: 351290
+            path: "contracts\\conversion-v2.clar"
+            anchor-block-only: true
+        - contract-publish:
+            contract-name: bitcoin-whales
+            expected-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+            cost: 87210
+            path: "contracts\\bitcoin-whales.clar"
+            anchor-block-only: true
+```
+
+As you can see, clarinet will remap the external contract to our Devnet address. In addition it will also create a copy of it in the folder `requirements`
+>>>>>>> 8eeab3c422bbc0a1689e1c1d7246cdb868c8d044
 
 ### Deploy contracts to Devnet / Testnet / Mainnet
 
